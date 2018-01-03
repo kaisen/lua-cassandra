@@ -10,7 +10,6 @@ Notes:
   - does not implement SUPPORTED results parsing and OPTIONS messages
   - does not implement EVENTS parsing
   - does not implement compression
-  - does not set stream ids for frames
   - does not implement no_metadata query flag and ROWS results flag
   - does not implement decimal data type
   - does not implement parsing of specific error codes

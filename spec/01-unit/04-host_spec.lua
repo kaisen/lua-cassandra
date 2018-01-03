@@ -1,17 +1,16 @@
 local cassandra = require "cassandra"
 local cql = require "cassandra.cql"
-local deque = require "util.deque"
 
 describe("_Host", function()
   describe("new", function()
-    it("sets stream_ids to the right length", function()
+    it("sets max_stream_ids to the right value", function()
       local host_v2, err = cassandra.new({protocol_version = 2})
       assert.is_nil(err)
-      assert.are.equal(2^7-1, deque.length(host_v2.stream_ids))
+      assert.are.equal(2^7-1, host_v2.max_stream_ids)
 
-      local host_v2, err = cassandra.new({protocol_version = 3})
+      local host_v3, err = cassandra.new({protocol_version = 3})
       assert.is_nil(err)
-      assert.are.equal(2^15-1, deque.length(host_v2.stream_ids))
+      assert.are.equal(2^15-1, host_v3.max_stream_ids)
     end)
   end)
 
@@ -49,35 +48,14 @@ describe("_Host", function()
       assert.are.same({stream_id = 1}, req.opts)
     end)
 
-    it("doesn't crash if there are no stream_ids left", function()
+    it("restarts from 0 once all ids have been used", function()
       local req = mock_request()
       local host = mock_host()
-      host.stream_ids["last"] = host.stream_ids["first"] - 1
+      host.current_stream_id = host.max_stream_ids
 
       local _, err = host:send(req)
       assert.is_nil(err)
-      assert.is_nil(req.opts)
-    end)
-
-    it("puts stream_id back if send fails", function()
-      local req = mock_request()
-      local host = mock_host()
-      host.sock.send = function() return nil, "send failure" end
-
-      local _, err = host:send(req)
-      assert.are.equal("send failure", err)
-      assert.are.equal(1, deque.popright(host.stream_ids))
-    end)
-
-    it("puts stream_id back if receive fails", function()
-      local req = mock_request()
-      local host = mock_host()
-      host.sock.send = function() return true, nil end
-      host.sock.receive = function() return nil, "receive failure" end
-
-      local _, err = host:send(req)
-      assert.are.equal("receive failure", err)
-      assert.are.equal(1, deque.popright(host.stream_ids))
+      assert.are.equal(0, host.current_stream_id)
     end)
 
     it("retries if response stream_id doesn't match", function()
@@ -103,8 +81,6 @@ describe("_Host", function()
       -- The first 2 times the stream_id doesn't match (3 & 2)
       -- The third time is 1 so the function should exit correctly
       assert.are.equal(3, read_header_count)
-      -- The stream_id should be back in the deque
-      assert.are.equal(1, deque.popright(host.stream_ids))
       assert.are.equal("body", res)
     end)
   end)
