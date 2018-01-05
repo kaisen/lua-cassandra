@@ -137,9 +137,7 @@ function _Host.new(opts)
     cert = opts.cert,
     cafile = opts.cafile,
     key = opts.key,
-    auth = opts.auth,
-    current_stream_id = 0,
-    max_stream_ids = protocol_version < 3 and 2^7-1 or 2^15-1
+    auth = opts.auth
   }
 
   return setmetatable(host, _Host)
@@ -148,14 +146,6 @@ end
 function _Host:send(request)
   if not self.sock then
     return nil, 'no socket created'
-  end
-
-  -- set stream_id
-  self.current_stream_id = (self.current_stream_id + 1) % (self.max_stream_ids + 1)
-  if request.opts then
-    request.opts.stream_id = self.current_stream_id
-  else
-    request.opts = {stream_id = self.current_stream_id}
   end
 
   local frame = request:build_frame(self.protocol_version)
@@ -185,7 +175,7 @@ function _Host:send(request)
 
     -- Only return a response  with a matching stream_id
     -- and drop everything else
-    if self.current_stream_id == header.stream_id then
+    if not request.opts or not request.opts.stream_id or request.opts.stream_id == header.stream_id then
       -- res, err, cql_err_code
       return cql.frame_reader.read_body(header, body_bytes)
     end
