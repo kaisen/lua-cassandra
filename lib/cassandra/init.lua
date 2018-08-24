@@ -152,6 +152,10 @@ function _Host:send(request)
   local sent, err = self.sock:send(frame)
   if not sent then return nil, err end
 
+  local retry_count = 0
+  ngx.update_time()
+  local start_timestamp = ngx.now()
+
   while true do
     -- receive frame version byte
     local v_byte, err = self.sock:receive(1)
@@ -177,7 +181,13 @@ function _Host:send(request)
     -- and drop everything else
     if not request.opts or not request.opts.stream_id or request.opts.stream_id == header.stream_id then
       -- res, err, cql_err_code
+      retry_count = 0
       return cql.frame_reader.read_body(header, body_bytes)
+    else
+        retry_count = retry_count + 1
+        ngx.update_time()
+        local end_timestamp = ngx.now()
+        ngx.log(ngx.WARN, 'retry_count: ' .. retry_count .. ' ||| duration: ' .. end_timestamp-start_timestamp)
     end
   end
 end
